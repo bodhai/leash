@@ -25,6 +25,9 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/vendor/ag-grid", express.static(path.join(__dirname, "node_modules", "ag-grid-community", "dist")));
 
 function lanUrls() {
+  // Hosted (e.g. Render): the container's own IPs are private, so advertise the public URL.
+  const publicUrl = process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL;
+  if (publicUrl) return [publicUrl.replace(/\/$/, "")];
   return Object.values(os.networkInterfaces()).flat()
     .filter((i) => i && i.family === "IPv4" && !i.internal)
     .map((i) => `http://${i.address}:${PORT}`);
