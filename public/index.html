@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Leash — an AI agent wallet on a leash</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="/vendor/ag-grid/ag-grid-community.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="favicon.svg" width="30" height="30" alt="" />
+      <div>
+        <h1>Leash</h1>
+        <p>Give your AI agent a PayPal wallet — on a leash.</p>
+      </div>
+    </div>
+    <div class="status-row">
+      <span class="pill" id="ai-pill">AI: …</span>
+      <span class="pill" id="pp-pill">PayPal: …</span>
+      <span class="pill mandate" id="mandate-pill">Mandate: none</span>
+      <span class="pill live" id="live-pill" title="Live sync with other devices">● Live</span>
+      <button class="btn danger sm" id="revoke-btn" hidden>Revoke agent</button>
+      <label class="toggle" title="Swap in a simulated compromised agent that obeys injected instructions, to prove the policy engine holds even if the AI is fooled.">
+        <input type="checkbox" id="redteam" /> <span>Red-team mode</span>
+      </label>
+      <button class="btn accent sm" id="tour-btn">▶ Demo tour</button>
+      <button class="btn ghost sm" id="phone-btn">📱 Phone</button>
+      <button class="btn ghost sm" id="reset-btn">Reset</button>
+    </div>
+  </header>
+
+  <!-- KPI strip: what the leash did -->
+  <section class="kpis" aria-label="Agent activity">
+    <div class="kpi"><span class="kpi-label">Paid autonomously</span><strong id="k-auto">$0.00</strong><span class="kpi-sub" id="k-auto-n">0 purchases · no human needed</span></div>
+    <div class="kpi"><span class="kpi-label">Human-approved</span><strong id="k-human">$0.00</strong><span class="kpi-sub" id="k-human-n">0 purchases</span></div>
+    <div class="kpi warn"><span class="kpi-label">Waiting for you</span><strong id="k-pending">0</strong><span class="kpi-sub" id="k-pending-n">$0.00 held against budget</span></div>
+    <div class="kpi bad"><span class="kpi-label">Money protected</span><strong id="k-protected">$0.00</strong><span class="kpi-sub" id="k-protected-n">0 blocked · 0 injections stopped</span></div>
+  </section>
+
+  <!-- Demo tour narration banner -->
+  <div class="tour" id="tour" hidden>
+    <div class="tour-step" id="tour-step">Step 1 of 6</div>
+    <div class="tour-text" id="tour-text"></div>
+    <div class="tour-actions">
+      <button class="btn ghost sm" id="tour-exit">Exit</button>
+      <button class="btn accent sm" id="tour-next">Next ▶</button>
+    </div>
+  </div>
+
+  <main class="layout">
+    <!-- Left: policy + wallet -->
+    <section class="col col-left">
+      <div class="card">
+        <div class="card-head">
+          <h2>Spending policy</h2>
+          <span class="hint">Plain English → enforced rules</span>
+        </div>
+        <div class="templates" id="templates" aria-label="Policy templates">
+          <button data-t="family">👪 Family</button>
+          <button data-t="strict">🔒 Strict</button>
+          <button data-t="business">🏢 Small business</button>
+        </div>
+        <textarea id="policy-text" rows="6" spellcheck="false" aria-label="Spending policy text"></textarea>
+        <button class="btn primary full" id="compile-btn">Compile rules</button>
+        <p class="explain" id="policy-explain"></p>
+        <ul class="rules" id="rules"></ul>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Wallet this month</h2></div>
+        <div class="meter-big">
+          <div class="meter-label"><span id="spent-label">$0 spent</span><span id="left-label">$300 left</span></div>
+          <div class="meter"><div class="fill" id="budget-fill"></div></div>
+        </div>
+        <div id="cat-meters"></div>
+      </div>
+    </section>
+
+    <!-- Center: chat -->
+    <section class="col col-center card chat">
+      <div class="card-head">
+        <h2>Ask your agent</h2>
+        <span class="hint">It shops. Your policy decides what gets paid.</span>
+      </div>
+      <div class="messages" id="messages">
+        <div class="msg agent intro">Hi! I'm your shopping agent. I can find things and pay with your PayPal — but only within the rules on the left. Purchases outside them are blocked or sent to you for approval (here or on your phone). Try one of these:</div>
+      </div>
+      <div class="suggestions" id="suggestions">
+        <button>Plan my daughter's 8th birthday party for 10 kids, keep it under $90</button>
+        <button>We're out of paper towels, dish soap and trash bags</button>
+        <button>Grab a bottle of prosecco for tonight</button>
+        <button>Get me the cheapest party supply bundle you can find</button>
+        <button>Buy a Bluetooth party speaker</button>
+      </div>
+      <form class="composer" id="composer">
+        <input id="input" autocomplete="off" placeholder="e.g. Restock breakfast stuff for the week" aria-label="Message the agent" />
+        <button class="btn primary" id="send-btn" type="submit">Send</button>
+      </form>
+    </section>
+
+    <!-- Right: trace -->
+    <section class="col col-right card">
+      <div class="card-head">
+        <h2>Agent trace</h2>
+        <span class="hint">Every thought, tool call and policy check</span>
+      </div>
+      <ol class="trace" id="trace"><li class="trace-empty">Nothing yet — send the agent a task.</li></ol>
+    </section>
+
+    <!-- Bottom: ledger -->
+    <section class="card ledger">
+      <div class="card-head">
+        <h2>Ledger</h2>
+        <div class="head-actions">
+          <span class="hint">Every attempt, paid or blocked — click a row for the full policy audit</span>
+          <button class="btn ghost sm" id="export-btn">⬇ Export CSV</button>
+        </div>
+      </div>
+      <div id="grid" class="grid"></div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    Leash · PayPal Orders v2 + Vault v3 · Claude · AG Grid — <span id="foot-urls"></span>
+  </footer>
+
+  <!-- Approval modal -->
+  <dialog id="approval">
+    <form method="dialog" class="modal">
+      <div class="modal-head">
+        <span class="badge warn">Approval needed</span>
+        <h3 id="ap-title"></h3>
+        <p class="rationale" id="ap-rationale"></p>
+      </div>
+      <ul class="lines" id="ap-items"></ul>
+      <div class="total"><span>Total</span><strong id="ap-total"></strong></div>
+      <h4>Why the agent is asking</h4>
+      <ul class="checks" id="ap-checks"></ul>
+      <div id="ap-approve"></div>
+      <button class="btn ghost full" id="ap-decline" type="button">Decline</button>
+      <p class="fine" id="ap-fine"></p>
+    </form>
+  </dialog>
+
+  <!-- Audit modal -->
+  <dialog id="audit">
+    <form method="dialog" class="modal">
+      <div class="modal-head">
+        <span class="badge" id="au-badge"></span>
+        <h3 id="au-title"></h3>
+        <p class="rationale" id="au-rationale"></p>
+      </div>
+      <ul class="lines" id="au-items"></ul>
+      <h4>Policy audit</h4>
+      <ul class="checks" id="au-checks"></ul>
+      <dl class="meta" id="au-meta"></dl>
+      <button class="btn ghost full">Close</button>
+    </form>
+  </dialog>
+
+  <!-- Phone pairing modal -->
+  <dialog id="phone">
+    <form method="dialog" class="modal center">
+      <h3>Approve from your phone</h3>
+      <p class="rationale">Connect your phone to the same Wi-Fi, then scan this code to open your Leash wallet. Approvals there show up here instantly.</p>
+      <img id="qr" alt="QR code for the phone wallet" width="220" height="220" />
+      <code id="phone-url" class="url"></code>
+      <p class="fine" id="phone-fine"></p>
+      <button class="btn ghost full">Close</button>
+    </form>
+  </dialog>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
